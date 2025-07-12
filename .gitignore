@@ -1,0 +1,9 @@
+Inventory/
+inventory.ini
+
+Vault/
+secrets.yml
+
+.env
+
+*.pem
