@@ -4,7 +4,7 @@
   become: true
 
   vars_files:
-    - Vault/secrets.yml  # Contains db_name, db_user, db_password, domain_name, email_address
+    - Vault/secrets.yml
   tasks:
     - name: Install Amazon extra packages
       shell: |
@@ -58,16 +58,16 @@
 
     - name: Database for Wordpress
       mysql_db:
-        name: "{{ db_name }}"
+        name: "{{ dbase_name }}"
         state: present
         login_unix_socket: /var/lib/mysql/mysql.sock
         login_user: root
 
     - name: Configuring WordPress - user and grant privileges
       mysql_user:
-        name: "{{ db_user }}"
-        password: "{{ db_password }}"
-        priv: "{{ db_name }}.*:ALL"
+        name: "{{ dbase_user }}"
+        password: "{{ dbase_password }}"
+        priv: "{{ dbase_name }}.*:ALL"
         state: present
         host: localhost
         login_unix_socket: /var/lib/mysql/mysql.sock
@@ -76,16 +76,18 @@
     - name: Flush privileges
       command: mysql -e "FLUSH PRIVILEGES;"
 
-    - name: Downloading and extracting WordPress
+    - name: Downloading WordPress
       get_url:
         url: https://wordpress.org/latest.tar.gz
         dest: /tmp/latest.tar.gz
         mode: '0644'
+
+    - name: Extracting Wordpress
       unarchive:
-        src: /tmp/latest.tar.gz
-        dest: /var/www/html/
-        remote_src: yes
-        extra_opts: [--strip-components=1]
+         src: /tmp/latest.tar.gz
+         dest: /var/www/html/
+         remote_src: yes
+         extra_opts: [--strip-components=1]
 
     - name: Remove - default page (Apache Httpd)
       file:
@@ -101,19 +103,19 @@
       replace:
         path: /var/www/html/wp-config.php
         regexp: "database_name_here"
-        replace: "{{ db_name }}"
+        replace: "{{ dbase_name }}"
 
     - name: Setting database username
       replace:
         path: /var/www/html/wp-config.php
         regexp: "username_here"
-        replace: "{{ db_user }}"
+        replace: "{{ dbase_user }}"
 
     - name: Setting database password
       replace:
         path: /var/www/html/wp-config.php
         regexp: "password_here"
-        replace: "{{ db_password }}"
+        replace: "{{ dbase_password }}"
 
     - name: Disabling Dashboard File Editing
       lineinfile:
