@@ -1,0 +1,176 @@
+---
+- name: Automating WordPress Installation and SSL Certificate Generation
+  hosts: cloud-ca1
+  become: true
+
+  vars_files:
+    - Vault/secrets.yml  # Contains db_name, db_user, db_password, domain_name, email_address
+  tasks:
+    - name: Install Amazon extra packages
+      shell: |
+        amazon-linux-extras enable php8.1 epel mariadb10.5
+        yum clean metadata
+      changed_when: false
+
+    - name: Updating linux systems
+      yum:
+        name: "*"
+        state: latest
+        update_cache: yes
+
+    - name: Install - Apache, PHP and MariaDB
+      yum:
+        name:
+          - httpd
+          - php
+          - mariadb105-server
+          - php-mysqlnd
+          - php-gd
+          - php-xml
+          - php-mbstring
+          - php-json
+          - php-fpm
+          - wget
+          - mod_ssl
+          - python3-certbot-apache
+        state: present
+
+    - name: Start and enable web servers, MariaDB
+      service:
+        name: "{{ item }}"
+        state: started
+        enabled: true
+      loop:
+        - httpd
+        - mariadb
+
+    - name: Install Python3 for PyMySQL
+      yum:
+        name:
+          - python3
+          - python3-pip
+        state: present
+
+    - name: Install PyMySQL
+      pip:
+        name: pymysql
+        executable: pip3
+
+    - name: Database for Wordpress
+      mysql_db:
+        name: "{{ db_name }}"
+        state: present
+        login_unix_socket: /var/lib/mysql/mysql.sock
+        login_user: root
+
+    - name: Configuring WordPress - user and grant privileges
+      mysql_user:
+        name: "{{ db_user }}"
+        password: "{{ db_password }}"
+        priv: "{{ db_name }}.*:ALL"
+        state: present
+        host: localhost
+        login_unix_socket: /var/lib/mysql/mysql.sock
+        login_user: root
+
+    - name: Flush privileges
+      command: mysql -e "FLUSH PRIVILEGES;"
+
+    - name: Downloading and extracting WordPress
+      get_url:
+        url: https://wordpress.org/latest.tar.gz
+        dest: /tmp/latest.tar.gz
+        mode: '0644'
+      unarchive:
+        src: /tmp/latest.tar.gz
+        dest: /var/www/html/
+        remote_src: yes
+        extra_opts: [--strip-components=1]
+
+    - name: Remove - default page (Apache Httpd)
+      file:
+        path: /var/www/html/index.html
+        state: absent
+
+    - name: Duplicating wp-config sample file to wp-config.conf
+      command: mv /var/www/html/wp-config-sample.php /var/www/html/wp-config.php
+      args:
+        creates: /var/www/html/wp-config.php
+
+    - name: Setting database name
+      replace:
+        path: /var/www/html/wp-config.php
+        regexp: "database_name_here"
+        replace: "{{ db_name }}"
+
+    - name: Setting database username
+      replace:
+        path: /var/www/html/wp-config.php
+        regexp: "username_here"
+        replace: "{{ db_user }}"
+
+    - name: Setting database password
+      replace:
+        path: /var/www/html/wp-config.php
+        regexp: "password_here"
+        replace: "{{ db_password }}"
+
+    - name: Disabling Dashboard File Editing
+      lineinfile:
+        path: /var/www/html/wp-config.php
+        line: "define('DISALLOW_FILE_EDIT', true);"
+        insertafter: "define\\('DB_COLLATE', ''\\);"
+
+    - name: Setting ownership and permissions for WordPress files
+      file:
+        path: /var/www/html
+        state: directory
+        recurse: yes
+        owner: apache
+        group: apache
+        mode: '2755'
+
+    - name: Disabling default ssl.conf to avoid dummy certification conflicts
+      command: mv /etc/httpd/conf.d/ssl.conf /etc/httpd/conf.d/ssl.conf.disabled
+      args:
+        removes: /etc/httpd/conf.d/ssl.conf.disabled
+      ignore_errors: yes
+
+    - name: Creating Httpd virtual host for {{ domain_name }}
+      copy:
+        dest: /etc/httpd/conf.d/{{ domain_name }}.conf
+        content: |
+          <VirtualHost *:80>
+              ServerName {{ domain_name }}
+
+              DocumentRoot /var/www/html
+
+              <Directory /var/www/html>
+                  Options Indexes FollowSymLinks
+                  AllowOverride All
+                  Require all granted
+              </Directory>
+
+              ErrorLog /var/log/httpd/{{ domain_name }}-error.log
+              CustomLog /var/log/httpd/{{ domain_name }}-access.log combined
+
+              RewriteEngine on
+              RewriteCond %{SERVER_NAME} ={{ domain_name }}
+              RewriteRule ^ https://%{SERVER_NAME}%{REQUEST_URI} [END,NE,R=permanent]
+          </VirtualHost>
+      notify: Restart  Httpd
+
+    - name: Obtaining and install SSL Certificate with Certbot (LetsEncrypt)
+      command:
+        certbot --apache
+        -d {{ domain_name }}
+        --non-interactive
+        --agree-tos
+        --email {{ email_address }}
+        --redirect
+
+  handlers:
+    - name: Restart Httpd
+      service:
+        name: httpd
+        state: restarted
