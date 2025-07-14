@@ -26,6 +26,7 @@ ansible-vault encrypt Secrets.yml
 
 Run `run.sh` script to execute 
 ```
+chmod +x run.sh
 ./run.sh
 ```
 
