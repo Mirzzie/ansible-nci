@@ -1,5 +1,5 @@
 ---
-- name: Automating WordPress Installation and SSL Certificate Generation
+- name: Automating Secure WordPress Installation with DataDog Integration.
   hosts: cloud-ca1
   become: true
 
@@ -12,7 +12,6 @@
         amazon-linux-extras enable php8.1 epel mariadb10.5
         yum clean metadata
       changed_when: false
-
 
     - name: Updating linux packages
       yum:
@@ -184,3 +183,26 @@
       service:
         name: httpd
         state: restarted
+
+- name: Setup Datadog.....
+  hosts: cloud-ca1
+  become: true
+
+  vars_files:
+    - Vault/secrets.yml
+
+  tasks:
+    - name: Setup Datadog Agent on EC2
+      include_role:
+        name: datadog.dd.agent
+
+  vars:
+    datadog_api_key: "{{ datadog_api_key }}"
+    datadog_site: "{{ datadog_site }}"
+    datadog_apm_instrumentation_enabled: "host"
+    datadog_apm_instrumentation_libraries:
+      - "java:1"
+      - "python:3"
+      - "js:5"
+      - "php:1"
+      - "dotnet:3"
