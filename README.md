@@ -21,7 +21,7 @@ email_address: email@example.com
 ```
 Encrypt `secret.yml` with Ansible Vault for better security
 ```
-ansible-vault encrypt Secrets.yml
+ansible-vault encrypt secrets.yml
 ```
 
 Run `run.sh` script to execute 
