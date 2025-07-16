@@ -10,16 +10,16 @@ USER=host_user
 KEY_PATH=/path/to/your/key.pem
 ```
 
-Create a `Secrets.yml` file in the Vault folder.
+Create a `secrets.yml` file in the Vault folder.
 
 ```
-domain_name=yourdomain.name
-dbase_name=database name
-dbase_password=password
-dbase_username=username
-email_address=email@example.com
+domain_name: yourdomain.name
+dbase_name: database name
+dbase_password: password
+dbase_username: username
+email_address: email@example.com
 ```
-Encrypt `Secret.yml` with Ansible Vault for better security
+Encrypt `secret.yml` with Ansible Vault for better security
 ```
 ansible-vault encrypt Secrets.yml
 ```
