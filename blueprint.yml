@@ -4,7 +4,7 @@
   become: true
 
   vars_files:
-    - Vault/secrets.yml # Contains db_name, db_user, db_password, domain_name, email_address
+    - Vault/secrets.yml
 
   tasks:
     - name: Install Amazon extra packages
