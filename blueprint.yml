@@ -1,5 +1,5 @@
 ---
-- name: Automating Secure WordPress Installation with DataDog Integration.
+- name: Automating Secure WordPress Installation, Monitoring and Backup
   hosts: cloud-ca1
   become: true
 
@@ -206,3 +206,36 @@
       - "js:5"
       - "php:1"
       - "dotnet:3"
+
+- name: Setting up cron jobs
+  hosts: cloud-ca1
+  become: true
+  vars_files:
+    - Vault/secrets.yml
+
+  pre_tasks:
+    - name: Ensure cronie (cron daemon) is installed
+      ansible.builtin.yum:
+        name: cronie
+        state: present
+
+    - name: Ensure crond service is started and enabled
+      ansible.builtin.service:
+        name: crond
+        state: started
+        enabled: true
+
+  tasks:
+    - name: Certbot SSL renewal
+      ansible.builtin.shell: |
+        (crontab -l 2>/dev/null; echo "0 3 * * * sudo /usr/bin/certbot renew --quiet --no-self-upgrade --post-hook 'systemctl reload httpd'") | crontab -
+      args:
+        executable: /bin/bash
+      become_user: "{{ default_user }}"
+
+    - name: WordPress DB backup
+      ansible.builtin.shell: |
+        (crontab -l 2>/dev/null; echo "0 2 * * * sudo /usr/bin/mysqldump -u root -S /var/lib/mysql/mysql.sock {{ dbase_name }} > /home/{{ default_user }}/db_backup_$(date +\\%F).sql") | crontab -
+      args:
+        executable: /bin/bash
+      become_user: "{{ default_user }}"
